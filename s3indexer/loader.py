@@ -1,7 +1,7 @@
 import os
 import sys
 import boto3
-import os
+import time
 
 class Loader:
     def __init__(self, db, bucket_name, page_size):
@@ -19,6 +19,7 @@ class Loader:
         config = {'PageSize':self.page_size, 'StartingToken':self.next_token}
         response = self.paginator.paginate(Bucket=self.bucket_name, PaginationConfig=config)
         
+        last_printed_time = int(time.time())
         last_printed = 0
         loaded_count = 0
         
@@ -33,8 +34,10 @@ class Loader:
                 print('Next token not found on response, its OK if there are no more files')
             
             if loaded_count - last_printed > 100000:
-                print("{} files loaded to db".format(loaded_count))
+                current_time = int(time.time())
+                print("{} files loaded to db in {} seconds".format(loaded_count, current_time - last_printed_time))
                 last_printed = loaded_count
+                last_printed_time = current_time
             
     def persist_next_token(self, next_token):
         self.db.execute_with_params("UPDATE next_token SET next_token=%s WHERE k=%s",
