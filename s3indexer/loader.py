@@ -19,17 +19,22 @@ class Loader:
         config = {'PageSize':self.page_size, 'StartingToken':self.next_token}
         response = self.paginator.paginate(Bucket=self.bucket_name, PaginationConfig=config)
         
+        loaded_count = 0
+        
         for items in response:
             for item in items['Contents']:
                 self.persist_item(item)
+                loaded_count = loaded_count + 1
             
             if 'NextContinuationToken' in items:
                 self.persist_next_token(items['NextContinuationToken'])
             else:
                 print('Next token not found on response, its OK if there are no more files')
             
+            if loaded_count % 100000 == 0:
+                print("{} files loaded to db".format(loaded_count))
+            
     def persist_next_token(self, next_token):
-        print("Persisting next_token {}".format(next_token))
         self.db.execute_with_params("UPDATE next_token SET next_token=%s WHERE k=%s",
             (next_token, 0))
         
@@ -43,7 +48,6 @@ class Loader:
         storageClass = item['StorageClass']
         modified = int(item['LastModified'].timestamp())
         
-        print("Persisting item {} {} {} {}".format(key, size, storageClass, modified))
         self.db.execute_with_params("""
             INSERT INTO files (k, size, modified, name, storage_class) 
             VALUES (%s, %s, %s, %s, %s)
