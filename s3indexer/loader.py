@@ -15,47 +15,69 @@ class Loader:
         self.paginator = self.s3.get_paginator('list_objects_v2')
         self.db = db
     
+    @staticmethod
+    def current_time_milli():
+        return round(time.time() * 1000)
+    
     def load(self):
         config = {'PageSize':self.page_size, 'StartingToken':self.next_token}
         response = self.paginator.paginate(Bucket=self.bucket_name, PaginationConfig=config)
         
-        last_printed_time = int(time.time())
+        last_printed_time = Loader.current_time_milli()
         last_printed = 0
         loaded_count = 0
+        db_time = 0
+        string_concat_time = 0
         
         for items in response:
+            string_concat_start = Loader.current_time_milli()
+            sql_statements = ''
             for item in items['Contents']:
-                self.persist_item(item)
+                if not self.is_valid_item(item):
+                    print ("Invalid item {}".format(item))
+                    continue
+                sql_statements += self.get_item_sql(self.get_item_sql_values(item))
                 loaded_count = loaded_count + 1
+            string_concat_time = string_concat_start + (Loader.current_time_milli() - string_concat_time)
+            
+            # According to https://stackoverflow.com/questions/8134602/psycopg2-insert-multiple-rows-with-one-query
+            #  batch performance is better achieved with plain old (and ugly) string concat
+            # 
+            # Open to sql-injection if s3 file names contain something fishy
+            # 
+            db_start = Loader.current_time_milli()
+            self.db.execute(sql_statements)
+            db_time = db_time + (Loader.current_time_milli() - db_start)
+            
+            if loaded_count - last_printed > 100000:
+                current_time = Loader.current_time_milli()
+                print("{} files loaded to db in {}ms (db_time: {}) (string_concat_time: {})".format(
+                    loaded_count, current_time - last_printed_time, db_time, string_concat_time))
+                sys.stdout.flush()
+                last_printed = loaded_count
+                last_printed_time = current_time
+                db_time = 0
+                string_concat_time = 0
             
             if 'NextContinuationToken' in items:
                 self.persist_next_token(items['NextContinuationToken'])
             else:
                 print('Next token not found on response, its OK if there are no more files')
             
-            if loaded_count - last_printed > 100000:
-                current_time = int(time.time())
-                print("{} files loaded to db in {} seconds".format(loaded_count, current_time - last_printed_time))
-                last_printed = loaded_count
-                last_printed_time = current_time
-                sys.stdout.flush()
-            
     def persist_next_token(self, next_token):
         self.db.execute_with_params("UPDATE next_token SET next_token=%s WHERE k=%s",
             (next_token, 0))
+    
+    def is_valid_item(self, item):
+        return 'Key' in item and 'Size' in item and 'StorageClass' in item and 'LastModified' in item
         
-    def persist_item(self, item):
-        if not 'Key' in item or not 'Size' in item or not 'StorageClass' in item or not 'LastModified' in item:
-            print ("Skipping invalid item {}".format(item))
-            return
-        
+    def get_item_sql_values(self, item):
         key = item['Key']
         size = item['Size']
         storageClass = item['StorageClass']
         modified = int(item['LastModified'].timestamp())
         
-        self.db.execute_with_params("""
-            INSERT INTO files (k, size, modified, name, storage_class) 
-            VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT DO NOTHING
-        """, (key, size, modified, os.path.basename(key), storageClass))
+        return "'{}', {}, {}, '{}', '{}'".format(key, size, modified, os.path.basename(key), storageClass)
+
+    def get_item_sql(self, values):
+        return "INSERT INTO files (k, size, modified, name, storage_class) VALUES (" + values + ") ON CONFLICT DO NOTHING;"
