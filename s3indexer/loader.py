@@ -38,6 +38,7 @@ class Loader:
                 print("{} files loaded to db in {} seconds".format(loaded_count, current_time - last_printed_time))
                 last_printed = loaded_count
                 last_printed_time = current_time
+                sys.stdout.flush()
             
     def persist_next_token(self, next_token):
         self.db.execute_with_params("UPDATE next_token SET next_token=%s WHERE k=%s",
