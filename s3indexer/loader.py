@@ -19,6 +19,7 @@ class Loader:
         config = {'PageSize':self.page_size, 'StartingToken':self.next_token}
         response = self.paginator.paginate(Bucket=self.bucket_name, PaginationConfig=config)
         
+        last_printed = 0
         loaded_count = 0
         
         for items in response:
@@ -31,8 +32,9 @@ class Loader:
             else:
                 print('Next token not found on response, its OK if there are no more files')
             
-            if loaded_count % 100000 == 0:
+            if loaded_count - last_printed > 100000:
                 print("{} files loaded to db".format(loaded_count))
+                last_printed = loaded_count
             
     def persist_next_token(self, next_token):
         self.db.execute_with_params("UPDATE next_token SET next_token=%s WHERE k=%s",
