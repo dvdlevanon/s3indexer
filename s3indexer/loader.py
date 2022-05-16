@@ -38,7 +38,7 @@ class Loader:
                     continue
                 sql_statements += self.get_item_sql(self.get_item_sql_values(item))
                 loaded_count = loaded_count + 1
-            string_concat_time = string_concat_time + (Loader.current_time_milli() - string_concat_time)
+            string_concat_time = string_concat_time + (Loader.current_time_milli() - string_concat_start)
             
             # According to https://stackoverflow.com/questions/8134602/psycopg2-insert-multiple-rows-with-one-query
             #  batch performance is better achieved with plain old (and ugly) string concat
