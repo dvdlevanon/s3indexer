@@ -1,8 +1,9 @@
 import psycopg
 
 class DB:
-	def __init__(self, connectionstring):
+	def __init__(self, connectionstring, table_name):
 		self.conn = psycopg.connect(connectionstring)
+		self.files_table_name = table_name
 	
 	def execute(self, sql):
 		with self.conn.cursor() as cur:
@@ -21,7 +22,7 @@ class DB:
 			
 	def init_schema(self):
 		self.execute("""
-				CREATE TABLE IF NOT EXISTS files (
+				CREATE TABLE IF NOT EXISTS """ + self.files_table_name + """ (
 					k text PRIMARY KEY,
 					size integer,
 					modified integer,

@@ -36,7 +36,7 @@ class Loader:
                 if not self.is_valid_item(item):
                     print ("Invalid item {}".format(item))
                     continue
-                sql_statements += self.get_item_sql(self.get_item_sql_values(item))
+                sql_statements += self.get_item_sql(self.get_item_sql_values(item), self.db.files_table_name)
                 loaded_count = loaded_count + 1
             string_concat_time = string_concat_time + (Loader.current_time_milli() - string_concat_start)
             
@@ -79,5 +79,5 @@ class Loader:
         
         return "'{}', {}, {}, '{}', '{}'".format(key, size, modified, os.path.basename(key), storageClass)
 
-    def get_item_sql(self, values):
-        return "INSERT INTO files (k, size, modified, name, storage_class) VALUES (" + values + ") ON CONFLICT DO NOTHING;"
+    def get_item_sql(self, values, files_table_name):
+        return "INSERT INTO " + files_table_name + " (k, size, modified, name, storage_class) VALUES (" + values + ") ON CONFLICT DO NOTHING;"
