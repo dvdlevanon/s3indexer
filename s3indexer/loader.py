@@ -15,22 +15,18 @@ class Loader:
         self.paginator = self.s3.get_paginator('list_objects_v2')
         self.db = db
     
-    @staticmethod
-    def current_time_milli():
-        return round(time.time() * 1000)
-    
     def load(self):
         config = {'PageSize':self.page_size, 'StartingToken':self.next_token}
         response = self.paginator.paginate(Bucket=self.bucket_name, PaginationConfig=config)
         
-        last_printed_time = Loader.current_time_milli()
+        last_printed_time = Utils.current_time_milli()
         last_printed = 0
         loaded_count = 0
         db_time = 0
         string_concat_time = 0
         
         for items in response:
-            string_concat_start = Loader.current_time_milli()
+            string_concat_start = Utils.current_time_milli()
             sql_statements = ''
             for item in items['Contents']:
                 if not self.is_valid_item(item):
@@ -38,19 +34,19 @@ class Loader:
                     continue
                 sql_statements += self.get_item_sql(self.get_item_sql_values(item), self.db.files_table_name)
                 loaded_count = loaded_count + 1
-            string_concat_time = string_concat_time + (Loader.current_time_milli() - string_concat_start)
+            string_concat_time = string_concat_time + (Utils.current_time_milli() - string_concat_start)
             
             # According to https://stackoverflow.com/questions/8134602/psycopg2-insert-multiple-rows-with-one-query
             #  batch performance is better achieved with plain old (and ugly) string concat
             # 
             # Open to sql-injection if s3 file names contain something fishy
             # 
-            db_start = Loader.current_time_milli()
+            db_start = Utils.current_time_milli()
             self.db.execute(sql_statements)
-            db_time = db_time + (Loader.current_time_milli() - db_start)
+            db_time = db_time + (Utils.current_time_milli() - db_start)
             
             if loaded_count - last_printed > 100000:
-                current_time = Loader.current_time_milli()
+                current_time = Utils.current_time_milli()
                 print("{} files loaded to db in {}ms (db_time: {}) (string_concat_time: {})".format(
                     loaded_count, current_time - last_printed_time, db_time, string_concat_time))
                 sys.stdout.flush()

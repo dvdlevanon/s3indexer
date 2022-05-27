@@ -3,29 +3,36 @@
 import argparse
 from s3indexer.db import DB
 from s3indexer.loader import Loader
+from s3indexer.analyzer import Analyzer
+from s3indexer.analyze_cleaner import AnalyzeCleaner
 
-parser = argparse.ArgumentParser(description='Index metadata of files in S3.')
-parser.add_argument('--bucket_name', '-b', help='S3 bucket name')
-parser.add_argument('--table_name', '-t', help='Files table name')
-parser.add_argument('--db_conn', '-c', help='Postgres DB Connection string')
-args = vars(parser.parse_args())
+common_parser = argparse.ArgumentParser(add_help=False)
+common_parser.add_argument('--table_name', '-t', help='Files table name', default='files')
+common_parser.add_argument('--db_conn', '-c', help='Postgres DB Connection string', default='host={} dbname={}'.format('localhost', 's3_metadata'))
 
-if not args['bucket_name']:
-	print('No bucket name specified')
-	exit(1)
+main_parser = argparse.ArgumentParser()
+subparsers = main_parser.add_subparsers(dest='command')
+load_parser = subparsers.add_parser('load', help='Load files metadata into raw db table', parents=[common_parser])
+load_parser.add_argument('--bucket_name', '-b', help='S3 bucket name', required=True)
+load_parser.add_argument('--page_size', '-p', help='Load from S3 in batches of (max 1000)', default=1000, type=int)
+analyze_parser = subparsers.add_parser('analyze', help='Analyze the raw db table', parents=[common_parser])
+analyze_parser.add_argument('--batch_size', '-b', help='Load from DB in batches of', default=1000, type=int)
+analyze_parser = subparsers.add_parser('clean-analyze', help='Clean all analyzed results', parents=[common_parser])
 
-if args['db_conn']:
-	connection_string = args['db_conn']
-else:
-	connection_string = "host={} dbname={}".format("localhost", "s3_metadata")
+args = main_parser.parse_args()
 
-if args['table_name']:
-	table_name = args['table_name']
-else:
-	table_name = "files"
-
-db = DB(connection_string, table_name)
+db = DB(args.db_conn, args.table_name)
 db.init_schema()
 
-loader = Loader(db, args['bucket_name'], 1000)
-loader.load()
+if args.command == 'load':
+	print ('Loading files from S3 bucket {} to {}'.format(args.bucket_name, args.table_name))
+	loader = Loader(db, args.bucket_name, args.page_size)
+	loader.load()
+elif args.command == 'analyze':
+	print ('Analyzing {}'.format(args.table_name))
+	analyzer = Analyzer(db, args.batch_size)
+	analyzer.analyze()
+elif args.command == 'clean-analyze':
+	print ('Cleaning analyze results {}'.format(args.table_name))
+	cleaner = AnalyzeCleaner(db)
+	cleaner.clean()
