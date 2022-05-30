@@ -1,3 +1,5 @@
+import time
+
 class Utils:
     @staticmethod
     def current_time_milli():

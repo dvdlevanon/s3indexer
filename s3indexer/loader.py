@@ -1,7 +1,7 @@
 import os
 import sys
 import boto3
-import time
+from s3indexer.utils import Utils
 
 class Loader:
     def __init__(self, db, bucket_name, page_size):
