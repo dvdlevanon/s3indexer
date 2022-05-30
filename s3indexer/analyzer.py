@@ -41,18 +41,21 @@ class Analyzer:
 	def analyze(self):
 		while True:
 			batch_start_time = Utils.current_time_milli()
-			rows_count, process_millis, flush_millis = self.analyze_batch()
+			rows_count, query_millis, process_millis, flush_millis = self.analyze_batch()
 			batch_time = Utils.current_time_milli() - batch_start_time
 			self.offset = self.offset + rows_count
 			self.persist_offset(self.offset)
 			if rows_count == 0:
 				break
-			print("Analyzed {} rows in {}ms (process {}ms) (flush {}ms)".format(rows_count, batch_time, process_millis, flush_millis))
+			print("Analyzed {} rows in {}ms (query {}ms) (process {}ms) (flush {}ms)".format(
+				rows_count, batch_time, query_millis, process_millis, flush_millis))
 	
 	def analyze_batch(self):
 		query = 'SELECT k, size, modified, name, storage_class FROM {} OFFSET %s LIMIT %s'.format(self.db.files_table_name)
+		query_start_time = Utils.current_time_milli()
 		result = self.db.execute_fetch_all_with_params(query,
 			(self.offset, self.batch_size))
+		query_millis = Utils.current_time_milli() - query_start_time
 		
 		memory_tables = BatchMemoryTables()
 		
@@ -66,7 +69,7 @@ class Analyzer:
 			memory_tables.flush(self.db, self.thread_pool)
 		flush_millis = Utils.current_time_milli() - flush_start_time
 		
-		return len(result), process_millis, flush_millis
+		return len(result), query_millis, process_millis, flush_millis
 	
 	def analyze_row(self, cur, memory_tables):
 		k = cur[0]
@@ -100,69 +103,6 @@ class Analyzer:
 			if category['regex'].match(name):
 				return category['name']
 		return None
-		
-	def update_by_year(self, year, size):
-		self.db.execute_with_params("""
-			INSERT INTO by_year AS y (year, files, size) 
-			VALUES (%s, %s, %s)
-			ON CONFLICT (year) DO UPDATE SET 
-				files = y.files + EXCLUDED.files,
-				size = y.size + EXCLUDED.size
-		""", (year, 1, size))
-	
-	def update_by_storage_class(self, storage_class, size):
-		self.db.execute_with_params("""
-			INSERT INTO by_storage_class AS s (storage_class, files, size) 
-			VALUES (%s, %s, %s)
-			ON CONFLICT (storage_class) DO UPDATE SET 
-				files = s.files + EXCLUDED.files,
-				size = s.size + EXCLUDED.size
-		""", (storage_class, 1, size))
-	
-	def update_by_mega(self, mega, size):
-		self.db.execute_with_params("""
-			INSERT INTO by_mega AS m (mega, files, size) 
-			VALUES (%s, %s, %s)
-			ON CONFLICT (mega) DO UPDATE SET 
-				files = m.files + EXCLUDED.files,
-				size = m.size + EXCLUDED.size
-		""", (mega, 1, size))
-	
-	def update_by_kilo(self, kilo, size):
-		self.db.execute_with_params("""
-			INSERT INTO by_kilo AS k (kilo, files, size) 
-			VALUES (%s, %s, %s)
-			ON CONFLICT (kilo) DO UPDATE SET 
-				files = k.files + EXCLUDED.files,
-				size = k.size + EXCLUDED.size
-		""", (kilo, 1, size))
-	
-	def update_by_month(self, month, size):
-		self.db.execute_with_params("""
-			INSERT INTO by_month AS m (month, files, size) 
-			VALUES (%s, %s, %s)
-			ON CONFLICT (month) DO UPDATE SET 
-				files = m.files + EXCLUDED.files,
-				size = m.size + EXCLUDED.size
-		""", (month, 1, size))
-		
-	def update_by_category(self, category, size):
-		self.db.execute_with_params("""
-			INSERT INTO by_category AS c (category, files, size) 
-			VALUES (%s, %s, %s)
-			ON CONFLICT (category) DO UPDATE SET 
-				files = c.files + EXCLUDED.files,
-				size = c.size + EXCLUDED.size
-		""", (category, 1, size))
-	
-	def update_by_year_category(self, year, category, size):
-		self.db.execute_with_params("""
-			INSERT INTO by_year_and_category AS c (year, category, files, size) 
-			VALUES (%s, %s, %s, %s)
-			ON CONFLICT (year, category) DO UPDATE SET 
-				files = c.files + EXCLUDED.files,
-				size = c.size + EXCLUDED.size
-		""", (year, category, 1, size))
 
 class KeyStats:
 	def __init__(self):

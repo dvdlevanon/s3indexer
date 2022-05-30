@@ -75,7 +75,7 @@ class DB:
 		
 		self.execute("""
 				CREATE TABLE IF NOT EXISTS by_mega (
-					mega text PRIMARY KEY,
+					mega integer PRIMARY KEY,
 					files bigint,
 					size bigint
 				)
@@ -83,7 +83,7 @@ class DB:
 		
 		self.execute("""
 				CREATE TABLE IF NOT EXISTS by_kilo (
-					kilo text PRIMARY KEY,
+					kilo integer PRIMARY KEY,
 					files bigint,
 					size bigint
 				)
@@ -91,7 +91,7 @@ class DB:
 
 		self.execute("""
 				CREATE TABLE IF NOT EXISTS by_month (
-					month text PRIMARY KEY,
+					month integer PRIMARY KEY,
 					files bigint,
 					size bigint
 				)
