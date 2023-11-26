@@ -1,5 +1,6 @@
 import time
 import math
+import sys
 import re
 from s3indexer.utils import Utils
 from concurrent import futures
@@ -49,6 +50,7 @@ class Analyzer:
 				break
 			print("Analyzed {} rows in {}ms (query {}ms) (process {}ms) (flush {}ms)".format(
 				rows_count, batch_time, query_millis, process_millis, flush_millis))
+			sys.stdout.flush()
 	
 	def analyze_batch(self):
 		query = 'SELECT k, size, modified, name, storage_class FROM {} OFFSET %s LIMIT %s'.format(self.db.files_table_name)
@@ -86,6 +88,7 @@ class Analyzer:
 		
 		if not category:
 			print ("Unknown category for file {}".format(name))
+			sys.stdout.flush()
 			exit(1)
 		
 		memory_tables.by_year.add(year, size)
